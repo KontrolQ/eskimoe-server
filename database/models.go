@@ -1,6 +1,8 @@
 package database
 
-import "time"
+import (
+	"time"
+)
 
 // Eskimoe is a Terminal Based Chat Application and these are the models for the database.
 // These models remain on the server. Eskimoe servers are like Discord servers, except
@@ -48,6 +50,7 @@ type Member struct {
 	About       string    `json:"about"`
 	JoinedAt    string    `json:"joined_at"`
 	Pronouns    string    `json:"pronouns"`
+	Roles       []Role    `gorm:"many2many:member_roles" json:"roles"`
 	CreatedAt   time.Time `json:"-"`
 	UpdatedAt   time.Time `json:"-"`
 }

@@ -41,4 +41,9 @@ func Initialize() {
 	default:
 		log.Fatal("Unsupported Database Driver")
 	}
+
+	log.Default().Println("Connected to Database")
+
+	// Migrate the Schema
+	Database.AutoMigrate(&Member{}, &Role{})
 }

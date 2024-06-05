@@ -2,6 +2,7 @@ package router
 
 import (
 	"eskimoe-server/config"
+	"eskimoe-server/controllers"
 	"log"
 
 	"github.com/gofiber/contrib/websocket"
@@ -17,6 +18,8 @@ func Initialize(router *fiber.App) {
 		})
 	})
 
+	router.Post("/join", controllers.JoinServer)
+	router.Get("/member", controllers.GetMember)
 
 	// Not ready: Just a test
 	router.Use("/ws", func(c *fiber.Ctx) error {
