@@ -18,8 +18,12 @@ func Initialize(router *fiber.App) {
 		})
 	})
 
-	router.Post("/join", controllers.JoinServer)
-	router.Get("/member", controllers.GetMember)
+	members := router.Group("/members")
+
+	// Members Endpoints
+	members.Post("/join", controllers.JoinServer)
+	members.Delete("/leave", controllers.LeaveServer)
+	members.Post("/me", controllers.Me)
 
 	// Not ready: Just a test
 	router.Use("/ws", func(c *fiber.Ctx) error {

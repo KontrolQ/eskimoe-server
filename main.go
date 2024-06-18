@@ -15,6 +15,8 @@ import (
 )
 
 func main() {
+	database.Initialize()
+
 	app := fiber.New()
 	app.Use(cors.New(cors.Config{
 		AllowHeaders: "Origin,Content-Type,Accept,Content-Length,Accept-Language,Accept-Encoding,Connection,Access-Control-Allow-Origin,Authorization",
@@ -24,12 +26,11 @@ func main() {
 	app.Use(logger.New())
 
 	app.Use(middleware.Json)
+	app.Use(middleware.Auth)
 
 	app.Use(helmet.New())
 
 	router.Initialize(app)
-
-	database.Initialize()
 
 	log.Fatal(app.Listen(":" + config.Port))
 }

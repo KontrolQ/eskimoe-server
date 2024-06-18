@@ -2,8 +2,10 @@ package database
 
 import (
 	"eskimoe-server/config"
+	"fmt"
 	"log"
 
+	"gorm.io/datatypes"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
@@ -44,6 +46,89 @@ func Initialize() {
 
 	log.Default().Println("Connected to Database")
 
-	// Migrate the Schema
-	Database.AutoMigrate(&Member{}, &Role{})
+	// Migrate the schema
+	Database.AutoMigrate(
+		&Server{},
+		&ServerReaction{},
+		&ServerInvite{},
+		&ServerPermission{},
+		&Member{},
+		&Role{},
+		&RoomCategory{},
+		&Room{},
+		&RoomPermission{},
+		&Message{},
+		&MessageAttachment{},
+		&MessageReaction{},
+	)
+
+	// Setup the server if it doesn't exist
+	if !SetupServer() {
+		log.Fatal("Error Setting Up Server")
+	}
+
+	log.Default().Println("Server Setup Complete")
+
+}
+
+// Setups a default server for first time use - returns false if a server already exists
+func SetupServer() bool {
+	var server Server
+	if Database.First(&server).Error == nil {
+		server.Name = config.Name
+		server.Message = config.Message
+
+		return Database.Save(&server).Error == nil
+	}
+
+	// Create a new server
+	newServer := Server{
+		Name:    config.Name,
+		Message: config.Message,
+		Mode:    Open, // Default to open mode
+	}
+
+	// Create default category and room
+	generalCategory := RoomCategory{
+		Name:        "General",
+		Description: "General discussion",
+	}
+
+	chatRoom := Room{
+		Name:        "Chat",
+		Description: "General chat room",
+		Type:        Text,
+	}
+
+	// Create default role and permissions
+	everyoneRole := Role{
+		Name: "Everyone",
+		Permissions: []ServerPermission{
+			{Permission: ViewRoom},
+			{Permission: SendMessage},
+			{Permission: AddLink},
+			{Permission: AddFile},
+			{Permission: AddReaction},
+			{Permission: ChangeName},
+			{Permission: RunCommands},
+			{Permission: ViewMessageHistory},
+		},
+	}
+
+	// Create relationships
+	generalCategory.Rooms = []Room{chatRoom}
+	newServer.Roles = []Role{everyoneRole}
+	newServer.RoomCategories = []RoomCategory{generalCategory}
+
+	// Save the server
+	if Database.Create(&newServer).Error != nil {
+		return false
+	}
+
+	// Save the order
+	newServer.CategoryOrder = datatypes.JSON([]byte(fmt.Sprintf("[%d]", generalCategory.ID)))
+	newServer.RoleOrder = datatypes.JSON([]byte(fmt.Sprintf("[%d]", everyoneRole.ID)))
+	generalCategory.RoomOrder = datatypes.JSON([]byte(fmt.Sprintf("[%d]", chatRoom.ID)))
+
+	return Database.Save(&newServer).Error == nil
 }
