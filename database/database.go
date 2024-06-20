@@ -161,6 +161,7 @@ func SetupServer() bool {
 		Name:        "everyone",
 		Permissions: []Permission{SendMessage, AddLink, AddFile, AddReaction, RunCommands, ViewMessageHistory, GenerateInvites},
 		SystemRole:  true,
+		ServerID:    newServer.ID,
 	}
 
 	if Database.Create(&everyoneRole).Error != nil {

@@ -63,12 +63,21 @@ func JoinServer(c *fiber.Ctx) error {
 
 	// Create Member
 	joinedAt := time.Now()
+	var server database.Server
+	if err := db.First(&server).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"errorCode": fiber.StatusInternalServerError,
+			"error":     "Error Finding Server",
+		})
+	}
+
 	newMember := database.Member{
 		UniqueID:    member.UniqueID,
 		UniqueToken: member.UniqueToken,
 		AuthToken:   string(encryptedToken),
 		DisplayName: member.DisplayName,
 		Roles:       []database.Role{everyoneRole},
+		ServerID:    server.ID,
 		JoinedAt:    joinedAt,
 	}
 
@@ -135,8 +144,6 @@ func Me(c *fiber.Ctx) error {
 				"error":     "Error Finding Roles",
 			})
 		}
-
-		// Add a isOwner field to the member - test: just add it for now to every memb
 
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
 			"member":  member,

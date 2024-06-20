@@ -95,14 +95,14 @@ type Server struct {
 	Roles           []Role                   `gorm:"foreignKey:ServerID" json:"roles"`
 	RoleOrder       datatypes.JSONSlice[int] `gorm:"type:json" json:"role_order"`
 	Events          []Event                  `gorm:"foreignKey:ServerID" json:"events"`
-	Logs            []Log                    `gorm:"foreignKey:ServerID" json:"logs"`
-	Members         []Member                 `gorm:"many2many:server_members" json:"members"`
+	Logs            []Log                    `gorm:"foreignKey:ServerID" json:"logs,omitempty"`
+	Members         []Member                 `gorm:"foreignKey:ServerID" json:"members"`
 	CreatedAt       time.Time                `json:"created_at"`
 	UpdatedAt       time.Time                `json:"-"`
 }
 
 type Category struct {
-	ID        int                      `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	ID        int                      `gorm:"primaryKey;autoIncrement=true" json:"id"`
 	Name      string                   `gorm:"not null" json:"name"`
 	Rooms     []Room                   `gorm:"foreignKey:CategoryID" json:"rooms"`
 	RoomOrder datatypes.JSONSlice[int] `gorm:"type:json" json:"room_order"`
@@ -113,7 +113,7 @@ type Category struct {
 }
 
 type Room struct {
-	ID          int       `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	ID          int       `gorm:"primaryKey;autoIncrement=true" json:"id"`
 	Name        string    `gorm:"not null" json:"name"`
 	Description string    `json:"description"`
 	Type        RoomType  `gorm:"not null;default:'text'" json:"type"`
@@ -183,7 +183,7 @@ type Invite struct {
 }
 
 type Role struct {
-	ID          int                             `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	ID          int                             `gorm:"primaryKey;autoIncrement=true" json:"id"`
 	Name        string                          `gorm:"not null" json:"name"`
 	Permissions datatypes.JSONSlice[Permission] `gorm:"type:json" json:"permissions"`
 	SystemRole  bool                            `json:"system_role"`
@@ -230,6 +230,8 @@ type Member struct {
 	Pronouns    string    `json:"pronouns"`
 	InviteCode  string    `json:"-"` // This is the code that the member used to join the server.
 	Roles       []Role    `gorm:"many2many:member_roles" json:"roles,omitempty"`
+	ServerID    int       `json:"-"`
+	Server      Server    `json:"-"`
 	JoinedAt    time.Time `json:"joined_at"`
 	CreatedAt   time.Time `json:"-"`
 	UpdatedAt   time.Time `json:"-"`

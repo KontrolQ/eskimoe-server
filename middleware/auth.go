@@ -25,7 +25,7 @@ func Auth(c *fiber.Ctx) error {
 
 	var member database.Member
 
-	if db.Where("auth_token = ?", token).First(&member).Error != nil {
+	if db.Where("auth_token = ?", token).Preload("Roles").First(&member).Error != nil {
 		return c.Next()
 	}
 

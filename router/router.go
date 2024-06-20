@@ -20,6 +20,14 @@ func Initialize(router *fiber.App) {
 	members.Get("/me", controllers.Me)
 	members.Post("/me", controllers.Me)
 
+	// Rooms Endpoints
+	rooms := router.Group("/rooms")
+
+	rooms.Get("/", controllers.CategoryWiseRooms)
+	rooms.Post("/new", controllers.CreateRoom)
+	rooms.Patch("/:room", controllers.UpdateRoom)
+	rooms.Delete("/:room", controllers.DeleteRoom)
+
 	// Not ready: Just a test
 	router.Use("/ws", func(c *fiber.Ctx) error {
 		// IsWebSocketUpgrade returns true if the client
