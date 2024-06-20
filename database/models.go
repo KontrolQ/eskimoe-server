@@ -13,7 +13,6 @@ import (
 type Permission string
 
 const (
-	ViewRoom           Permission = "view_room"
 	SendMessage        Permission = "send_message"
 	AddLink            Permission = "add_link"
 	AddFile            Permission = "add_file"
@@ -31,6 +30,7 @@ const (
 	ViewMessageHistory Permission = "view_message_history"
 	CreateEvents       Permission = "create_events"
 	ManageEvents       Permission = "manage_events"
+	GenerateInvites    Permission = "generate_invites"
 	Administrator      Permission = "administrator"
 )
 
@@ -52,264 +52,185 @@ const (
 	Passphrase ServerMode = "passphrase"
 )
 
+type LogType string
+
+const (
+	CategoryCreated    LogType = "category_created"
+	CategoryDeleted    LogType = "category_deleted"
+	CategoryUpdated    LogType = "category_updated"
+	RoomCreated        LogType = "room_created"
+	RoomDeleted        LogType = "room_deleted"
+	RoomUpdated        LogType = "room_updated"
+	MessageDeleted     LogType = "message_deleted"
+	MessageBulkDeleted LogType = "message_bulk_deleted"
+	MemberBanned       LogType = "member_banned"
+	MemberKicked       LogType = "member_kicked"
+	MemberUnbanned     LogType = "member_unbanned"
+	MemberUpdated      LogType = "member_updated"
+	RoleCreated        LogType = "role_created"
+	RoleDeleted        LogType = "role_deleted"
+	RoleUpdated        LogType = "role_updated"
+	InviteGenerated    LogType = "invite_generated"
+	InviteUsed         LogType = "invite_used"
+	InviteDeleted      LogType = "invite_deleted" // Only unused invites can be deleted.
+	ReactionCreated    LogType = "reaction_created"
+	ReactionDeleted    LogType = "reaction_deleted"
+	ReactionUpdated    LogType = "reaction_updated"
+	EventCreated       LogType = "event_created"
+	EventDeleted       LogType = "event_deleted"
+	EventUpdated       LogType = "event_updated"
+)
+
 type Server struct {
-	ID             int              `gorm:"primaryKey;autoIncrement=true" json:"-"`
-	Name           string           `gorm:"unique" json:"name"`
-	Message        string           `json:"message"`
-	PublicURL      string           `json:"public_url"`
-	Mode           ServerMode       `gorm:"default:open" json:"mode"`
-	Members        []Member         `gorm:"many2many:server_members" json:"members"`
-	Roles          []Role           `gorm:"foreignKey:ServerID" json:"roles"`
-	RoomCategories []RoomCategory   `gorm:"foreignKey:ServerID" json:"room_categories"`
-	Reactions      []ServerReaction `gorm:"foreignKey:ServerID" json:"reactions"`
-	CategoryOrder  datatypes.JSON   `json:"category_order"`
-	RoleOrder      datatypes.JSON   `json:"role_order"`
-	CreatedAt      time.Time        `json:"-"`
-	UpdatedAt      time.Time        `json:"-"`
+	ID              int                      `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	Name            string                   `gorm:"not null" json:"name"`
+	Message         string                   `json:"message"`
+	PublicURL       string                   `json:"public_url"`
+	Mode            ServerMode               `gorm:"not null;default:'open'" json:"mode"`
+	Passphrase      string                   `json:"-"`
+	Categories      []Category               `gorm:"foreignKey:ServerID" json:"categories"`
+	CategoryOrder   datatypes.JSONSlice[int] `gorm:"type:json" json:"category_order"`
+	ServerReactions []ServerReaction         `gorm:"foreignKey:ServerID" json:"server_reactions"`
+	Invites         []Invite                 `gorm:"foreignKey:ServerID" json:"-"`
+	Roles           []Role                   `gorm:"foreignKey:ServerID" json:"roles"`
+	RoleOrder       datatypes.JSONSlice[int] `gorm:"type:json" json:"role_order"`
+	Events          []Event                  `gorm:"foreignKey:ServerID" json:"events"`
+	Logs            []Log                    `gorm:"foreignKey:ServerID" json:"logs"`
+	Members         []Member                 `gorm:"many2many:server_members" json:"members"`
+	CreatedAt       time.Time                `json:"created_at"`
+	UpdatedAt       time.Time                `json:"-"`
 }
 
-type ServerReaction struct {
-	ID        int       `gorm:"primaryKey;autoIncrement=true" json:"-"`
-	ServerID  int       `json:"-"`
-	Reaction  string    `json:"reaction"`
-	CreatedAt time.Time `json:"-"`
-	UpdatedAt time.Time `json:"-"`
-}
-
-type ServerInvite struct {
-	ID         int       `gorm:"primaryKey;autoIncrement=true" json:"-"`
-	MemberID   int       `json:"-"`
-	Member     Member    `gorm:"foreignKey:MemberID" json:"member"`
-	InviteCode string    `json:"invite_code"`
-	CreatedAt  time.Time `json:"-"`
-	UpdatedAt  time.Time `json:"-"`
-}
-
-type ServerPermission struct {
-	ID         int        `gorm:"primaryKey;autoIncrement=true" json:"-"`
-	RoleID     int        `json:"-"`
-	Role       Role       `gorm:"foreignKey:RoleID" json:"role"`
-	Permission Permission `json:"permission"`
-	CreatedAt  time.Time  `json:"-"`
-	UpdatedAt  time.Time  `json:"-"`
-}
-
-type Member struct {
-	ID                   int            `gorm:"primaryKey;autoIncrement=true" json:"-"`
-	UniqueID             string         `gorm:"unique" json:"-"`
-	AuthToken            string         `json:"auth_token,omitempty"`
-	UniqueToken          string         `json:"-"`
-	DisplayName          string         `json:"display_name"`
-	About                string         `json:"about"`
-	Pronouns             string         `json:"pronouns"`
-	Roles                []Role         `gorm:"many2many:member_roles" json:"roles"`
-	InviteCode           string         `json:"-"`
-	GeneratedInviteCodes []ServerInvite `gorm:"foreignKey:MemberID" json:"-"`
-	JoinedAt             time.Time      `json:"joined_at"`
-	CreatedAt            time.Time      `json:"-"`
-	UpdatedAt            time.Time      `json:"-"`
-}
-
-type Role struct {
-	ID          int                `gorm:"primaryKey;autoIncrement=true" json:"-"`
-	Name        string             `gorm:"unique" json:"name"`
-	ServerID    int                `json:"-"`
-	Permissions []ServerPermission `gorm:"foreignKey:RoleID" json:"permissions"`
-	CreatedAt   time.Time          `json:"-"`
-	UpdatedAt   time.Time          `json:"-"`
-}
-
-type RoomCategory struct {
-	ID          int            `gorm:"primaryKey;autoIncrement=true" json:"-"`
-	Name        string         `gorm:"unique" json:"name"`
-	Description string         `json:"description"`
-	ServerID    int            `json:"-"`
-	CreatedAt   time.Time      `json:"-"`
-	UpdatedAt   time.Time      `json:"-"`
-	Rooms       []Room         `gorm:"foreignKey:CategoryID" json:"rooms"`
-	RoomOrder   datatypes.JSON `json:"room_order"`
+type Category struct {
+	ID        int                      `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	Name      string                   `gorm:"not null" json:"name"`
+	Rooms     []Room                   `gorm:"foreignKey:CategoryID" json:"rooms"`
+	RoomOrder datatypes.JSONSlice[int] `gorm:"type:json" json:"room_order"`
+	ServerID  int                      `json:"-"`
+	Server    Server                   `json:"-"`
+	CreatedAt time.Time                `json:"created_at"`
+	UpdatedAt time.Time                `json:"-"`
 }
 
 type Room struct {
-	ID          int              `gorm:"primaryKey;autoIncrement=true" json:"-"`
-	Name        string           `gorm:"unique" json:"name"`
-	Description string           `json:"description"`
-	Type        RoomType         `json:"type"`
-	CategoryID  int              `json:"-"`
-	Permissions []RoomPermission `gorm:"foreignKey:RoomID" json:"permissions"`
-	Messages    []Message        `gorm:"foreignKey:RoomID" json:"messages"`
-	CreatedAt   time.Time        `json:"-"`
-	UpdatedAt   time.Time        `json:"-"`
-}
-
-type RoomPermission struct {
-	ID         int        `gorm:"primaryKey;autoIncrement=true" json:"-"`
-	RoomID     int        `json:"-"`
-	RoleID     int        `json:"-"`
-	Role       Role       `gorm:"foreignKey:RoleID" json:"role"`
-	Permission Permission `json:"permission"`
-	CreatedAt  time.Time  `json:"-"`
-	UpdatedAt  time.Time  `json:"-"`
+	ID          int       `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	Name        string    `gorm:"not null" json:"name"`
+	Description string    `json:"description"`
+	Type        RoomType  `gorm:"not null;default:'text'" json:"type"`
+	Messages    []Message `gorm:"foreignKey:RoomID" json:"messages,omitempty"`
+	CategoryID  int       `json:"-"`
+	Category    Category  `json:"-"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"-"`
 }
 
 type Message struct {
 	ID          int                 `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	Content     string              `gorm:"not null" json:"content"`
 	AuthorID    int                 `json:"-"`
-	Author      Member              `gorm:"foreignKey:AuthorID" json:"author"`
-	RoomID      int                 `json:"-"`
-	Content     string              `json:"content"`
+	Author      Member              `json:"author"`
 	Reactions   []MessageReaction   `gorm:"foreignKey:MessageID" json:"reactions"`
 	Attachments []MessageAttachment `gorm:"foreignKey:MessageID" json:"attachments"`
 	Edited      bool                `json:"edited"`
-	CreatedAt   time.Time           `json:"-"`
+	RoomID      int                 `json:"-"`
+	Room        Room                `json:"-"`
+	CreatedAt   time.Time           `json:"created_at"`
 	UpdatedAt   time.Time           `json:"-"`
+}
+
+type MessageReaction struct {
+	ID         int            `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	Reaction   ServerReaction `gorm:"foreignKey:ReactionID" json:"reaction"`
+	Members    []Member       `gorm:"many2many:message_reaction_members" json:"members"`
+	MessageID  int            `json:"-"`
+	Message    Message        `json:"-"`
+	ReactionID int            `json:"-"`
+	CreatedAt  time.Time      `json:"-"`
+	UpdatedAt  time.Time      `json:"-"`
 }
 
 type MessageAttachment struct {
 	ID        int       `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	Type      string    `gorm:"not null" json:"type"`
+	URL       string    `gorm:"not null" json:"url"`
 	MessageID int       `json:"-"`
-	Message   Message   `gorm:"foreignKey:MessageID" json:"message"`
-	URL       string    `json:"url"`
-	Type      string    `json:"type"`
-	CreatedAt time.Time `json:"-"`
+	Message   Message   `json:"-"`
+	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"-"`
 }
 
-type MessageReaction struct {
+type ServerReaction struct {
 	ID        int       `gorm:"primaryKey;autoIncrement=true" json:"-"`
-	MessageID int       `json:"-"`
-	Message   Message   `gorm:"foreignKey:MessageID" json:"message"`
-	Reaction  string    `json:"reaction"`
-	CreatedAt time.Time `json:"-"`
+	Reaction  string    `gorm:"not null" json:"reaction"`
+	ServerID  int       `json:"-"`
+	Server    Server    `json:"-"`
+	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"-"`
 }
 
-// type Server struct {
-// 	ID             int               `gorm:"primaryKey;autoIncrement=true" json:"-"`
-// 	Name           string            `gorm:"unique" json:"name"`
-// 	Message        string            `json:"message"`
-// 	PublicURL      string            `json:"public_url"`
-// 	Mode           ServerMode        `json:"mode" gorm:"default:open"`
-// 	Members        []Member          `gorm:"many2many:server_members" json:"members"`
-// 	Roles          []Role            `gorm:"foreignKey:ServerID" json:"roles"`
-// 	RoomCategories []RoomCategory    `gorm:"foreignKey:ServerID" json:"room_categories"`
-// 	Reactions      []ServerReactions `gorm:"foreignKey:ServerID" json:"reactions"`
-// 	CategoryOrder  []int             `json:"category_order"`
-// 	RoleOrder      []int             `json:"role_order"`
-// 	CreatedAt      time.Time         `json:"-"`
-// 	UpdatedAt      time.Time         `json:"-"`
-// }
+type Invite struct {
+	ID            int       `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	Code          string    `gorm:"not null" json:"code"`
+	Used          bool      `json:"used"`
+	GeneratedBy   Member    `gorm:"foreignKey:GeneratedByID" json:"generated_by"`
+	GeneratedByID int       `json:"-"`
+	UsedBy        Member    `gorm:"foreignKey:UsedByID" json:"used_by"`
+	UsedByID      int       `json:"-"`
+	ServerID      int       `json:"-"`
+	Server        Server    `json:"-"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"-"`
+}
 
-// type ServerReactions struct {
-// 	ID        int    `gorm:"primaryKey;autoIncrement=true" json:"-"`
-// 	ServerID  int    `json:"-"`
-// 	Reaction  string `json:"reaction"`
-// 	CreatedAt time.Time
-// 	UpdatedAt time.Time
-// }
+type Role struct {
+	ID          int                             `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	Name        string                          `gorm:"not null" json:"name"`
+	Permissions datatypes.JSONSlice[Permission] `gorm:"type:json" json:"permissions"`
+	SystemRole  bool                            `json:"system_role"`
+	ServerID    int                             `json:"-"`
+	Server      Server                          `json:"-"`
+	CreatedAt   time.Time                       `json:"created_at"`
+	UpdatedAt   time.Time                       `json:"-"`
+}
 
-// type ServerInvites struct {
-// 	ID         int    `gorm:"primaryKey;autoIncrement=true" json:"-"`
-// 	MemberID   int    `json:"-"`
-// 	Member     Member `gorm:"foreignKey:MemberID" json:"member"`
-// 	InviteCode string `json:"invite_code"`
-// 	CreatedAt  time.Time
-// 	UpdatedAt  time.Time
-// }
+type Event struct {
+	ID          int       `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	Name        string    `gorm:"not null" json:"name"`
+	Description string    `json:"description"`
+	StartTime   time.Time `json:"start_time"`
+	EndTime     time.Time `json:"end_time"`
+	CreatedBy   Member    `gorm:"foreignKey:CreatedByID" json:"created_by"`
+	CreatedByID int       `json:"-"`
+	Intereested []Member  `gorm:"many2many:event_interested" json:"interested"`
+	ServerID    int       `json:"-"`
+	Server      Server    `json:"-"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"-"`
+}
 
-// type ServerPermissions struct {
-// 	ID         int        `gorm:"primaryKey;autoIncrement=true" json:"-"`
-// 	RoleID     uint       `json:"-"`
-// 	Role       Role       `gorm:"foreignKey:RoleID" json:"role"`
-// 	Permission Permission `json:"permission"`
-// 	CreatedAt  time.Time  `json:"-"`
-// }
+type Log struct {
+	ID        int       `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	Type      LogType   `gorm:"not null" json:"type"`
+	Content   string    `json:"content"`
+	MemberID  int       `json:"-"`
+	Member    Member    `json:"member"`
+	ServerID  int       `json:"-"`
+	Server    Server    `json:"-"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"-"`
+}
 
-// type Member struct {
-// 	ID                   int             `gorm:"primaryKey;autoIncrement=true" json:"-"`
-// 	UniqueID             string          `gorm:"unique_id" json:"-"`
-// 	AuthToken            string          `gorm:"auth_token" json:"auth_token,omitempty"`
-// 	UniqueToken          string          `gorm:"unique_token" json:"-"`
-// 	DisplayName          string          `json:"display_name"`
-// 	About                string          `json:"about"`
-// 	Pronouns             string          `json:"pronouns"`
-// 	Roles                []Role          `gorm:"many2many:member_roles" json:"roles"`
-// 	InviteCode           string          `json:"-"`
-// 	GeneratedInviteCodes []ServerInvites `gorm:"foreignKey:MemberID" json:"-"`
-// 	JoinedAt             time.Time       `json:"joined_at"`
-// 	CreatedAt            time.Time       `json:"-"`
-// 	UpdatedAt            time.Time       `json:"-"`
-// }
-
-// type Role struct {
-// 	ID          int                 `gorm:"primaryKey;autoIncrement=true" json:"-"`
-// 	Name        string              `gorm:"unique" json:"name"`
-// 	Permissions []ServerPermissions `json:"permissions"`
-// 	CreatedAt   time.Time           `json:"-"`
-// 	UpdatedAt   time.Time           `json:"-"`
-// }
-
-// type RoomCategory struct {
-// 	ID          int    `gorm:"primaryKey;autoIncrement=true" json:"-"`
-// 	Name        string `gorm:"unique" json:"name"`
-// 	Description string `json:"description"`
-// 	CreatedAt   time.Time
-// 	UpdatedAt   time.Time
-// 	Rooms       []Room `gorm:"foreignKey:CategoryID" json:"rooms"`
-// 	RoomOrder   []int  `json:"room_order"`
-// }
-
-// type Room struct {
-// 	ID          int               `gorm:"primaryKey;autoIncrement=true" json:"-"`
-// 	Name        string            `gorm:"unique" json:"name"`
-// 	Description string            `json:"description"`
-// 	Type        RoomType          `json:"type"`
-// 	Permissions []RoomPermissions `json:"permissions"`
-// 	Messages    []Message         `json:"messages"`
-// 	CreatedAt   time.Time         `json:"-"`
-// 	UpdatedAt   time.Time         `json:"-"`
-// }
-
-// type RoomPermissions struct {
-// 	ID         int        `gorm:"primaryKey;autoIncrement=true" json:"-"`
-// 	RoomID     int        `json:"-"`
-// 	RoleID     uint       `json:"-"`
-// 	Role       Role       `gorm:"foreignKey:RoleID" json:"role"`
-// 	Permission Permission `json:"permission"`
-// 	CreatedAt  time.Time  `json:"-"`
-// 	UpdatedAt  time.Time  `json:"-"`
-// }
-
-// type Message struct {
-// 	ID          int                 `gorm:"primaryKey;autoIncrement=true" json:"-"`
-// 	Author      Member              `gorm:"foreignKey:AuthorID" json:"author"`
-// 	AuthorID    int                 `json:"-"`
-// 	Content     string              `json:"content"`
-// 	Reactions   []MessageReaction   `json:"reactions"`
-// 	Attachments []MessageAttachment `json:"attachments"`
-// 	Edited      bool                `json:"edited"`
-// 	CreatedAt   time.Time           `json:"-"`
-// 	UpdatedAt   time.Time           `json:"-"`
-// }
-
-// type MessageAttachment struct {
-// 	ID        int     `gorm:"primaryKey;autoIncrement=true" json:"-"`
-// 	MessageID int     `json:"-"`
-// 	Message   Message `gorm:"foreignKey:MessageID" json:"message"`
-// 	URL       string  `json:"url"`
-// 	Type      string  `json:"type"`
-// 	CreatedAt time.Time
-// 	UpdatedAt time.Time
-// }
-
-// type MessageReaction struct {
-// 	ID        int             `gorm:"primaryKey;autoIncrement=true" json:"-"`
-// 	MessageID int             `json:"-"`
-// 	Message   Message         `gorm:"foreignKey:MessageID" json:"message"`
-// 	AuthorID  int             `json:"-"`
-// 	Author    Member          `gorm:"foreignKey:AuthorID" json:"author"`
-// 	Reaction  ServerReactions `json:"reaction"`
-// 	Reactors  []Member        `gorm:"many2many:reactors" json:"reactors"`
-// 	CreatedAt time.Time       `json:"-"`
-// 	UpdatedAt time.Time       `json:"-"`
-// }
+type Member struct {
+	ID          int       `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	UniqueID    string    `gorm:"not null;unique" json:"-"`
+	AuthToken   string    `gorm:"not null" json:"auth_token,omitempty"`
+	UniqueToken string    `gorm:"not null;unique" json:"-"`
+	DisplayName string    `gorm:"not null" json:"display_name"`
+	About       string    `json:"about"`
+	Pronouns    string    `json:"pronouns"`
+	InviteCode  string    `json:"-"` // This is the code that the member used to join the server.
+	Roles       []Role    `gorm:"many2many:member_roles" json:"roles,omitempty"`
+	JoinedAt    time.Time `json:"joined_at"`
+	CreatedAt   time.Time `json:"-"`
+	UpdatedAt   time.Time `json:"-"`
+}

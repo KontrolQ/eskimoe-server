@@ -29,7 +29,6 @@ func Auth(c *fiber.Ctx) error {
 		return c.Next()
 	}
 
-	// Attach the member to the context
 	c.Locals("Member", member)
 
 	return c.Next()

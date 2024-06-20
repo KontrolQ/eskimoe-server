@@ -2,10 +2,9 @@ package database
 
 import (
 	"eskimoe-server/config"
-	"fmt"
 	"log"
+	"os"
 
-	"gorm.io/datatypes"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
@@ -49,22 +48,45 @@ func Initialize() {
 	// Migrate the schema
 	Database.AutoMigrate(
 		&Server{},
-		&ServerReaction{},
-		&ServerInvite{},
-		&ServerPermission{},
-		&Member{},
-		&Role{},
-		&RoomCategory{},
+		&Category{},
 		&Room{},
-		&RoomPermission{},
 		&Message{},
-		&MessageAttachment{},
 		&MessageReaction{},
+		&MessageAttachment{},
+		&ServerReaction{},
+		&Invite{},
+		&Role{},
+		&Event{},
+		&Log{},
+		&Member{},
 	)
 
 	// Setup the server if it doesn't exist
 	if !SetupServer() {
-		log.Fatal("Error Setting Up Server")
+		// Delete Database
+		Database.Migrator().DropTable(
+			&Server{},
+			&Category{},
+			&Room{},
+			&Message{},
+			&MessageReaction{},
+			&MessageAttachment{},
+			&ServerReaction{},
+			&Invite{},
+			&Role{},
+			&Event{},
+			&Log{},
+			&Member{},
+		)
+
+		// If Database is sqlite, delete the file
+		if driver == "sqlite" {
+			if error = os.Remove(dsn); error != nil {
+				log.Fatal("Error Removing Database")
+			}
+		}
+
+		log.Fatal("Error Setting Up Server. Removing Database")
 	}
 
 	log.Default().Println("Server Setup Complete")
@@ -81,54 +103,72 @@ func SetupServer() bool {
 		return Database.Save(&server).Error == nil
 	}
 
-	// Create a new server
 	newServer := Server{
 		Name:    config.Name,
 		Message: config.Message,
-		Mode:    Open, // Default to open mode
+		Mode:    Open,
 	}
 
-	// Create default category and room
-	generalCategory := RoomCategory{
-		Name:        "General",
-		Description: "General discussion",
-	}
-
-	chatRoom := Room{
-		Name:        "Chat",
-		Description: "General chat room",
-		Type:        Text,
-	}
-
-	// Create default role and permissions
-	everyoneRole := Role{
-		Name: "Everyone",
-		Permissions: []ServerPermission{
-			{Permission: ViewRoom},
-			{Permission: SendMessage},
-			{Permission: AddLink},
-			{Permission: AddFile},
-			{Permission: AddReaction},
-			{Permission: ChangeName},
-			{Permission: RunCommands},
-			{Permission: ViewMessageHistory},
-		},
-	}
-
-	// Create relationships
-	generalCategory.Rooms = []Room{chatRoom}
-	newServer.Roles = []Role{everyoneRole}
-	newServer.RoomCategories = []RoomCategory{generalCategory}
-
-	// Save the server
 	if Database.Create(&newServer).Error != nil {
 		return false
 	}
 
-	// Save the order
-	newServer.CategoryOrder = datatypes.JSON([]byte(fmt.Sprintf("[%d]", generalCategory.ID)))
-	newServer.RoleOrder = datatypes.JSON([]byte(fmt.Sprintf("[%d]", everyoneRole.ID)))
-	generalCategory.RoomOrder = datatypes.JSON([]byte(fmt.Sprintf("[%d]", chatRoom.ID)))
+	// Update Server with default values
+
+	likeReaction := ServerReaction{
+		Reaction: "LIKE",
+		ServerID: newServer.ID,
+	}
+
+	if Database.Create(&likeReaction).Error != nil {
+		return false
+	}
+
+	// Create General Category
+	generalCategory := Category{
+		Name:     "General",
+		ServerID: newServer.ID,
+	}
+
+	if Database.Create(&generalCategory).Error != nil {
+		return false
+	}
+
+	generalCategoryID := generalCategory.ID
+
+	// Create General Chat Room
+	generalChatRoom := Room{
+		Name:        "General",
+		Description: "General Chat Room",
+		Type:        Text,
+		CategoryID:  generalCategoryID,
+	}
+
+	if Database.Create(&generalChatRoom).Error != nil {
+		return false
+	}
+
+	// Set Room Order, Category Order
+	generalCategory.RoomOrder = []int{generalChatRoom.ID}
+	newServer.CategoryOrder = []int{generalCategory.ID}
+
+	if Database.Save(&generalCategory).Error != nil {
+		return false
+	}
+
+	// Create Everyone Role
+	everyoneRole := Role{
+		Name:        "everyone",
+		Permissions: []Permission{SendMessage, AddLink, AddFile, AddReaction, RunCommands, ViewMessageHistory, GenerateInvites},
+		SystemRole:  true,
+	}
+
+	if Database.Create(&everyoneRole).Error != nil {
+		return false
+	}
+
+	// Set Role Order
+	newServer.RoleOrder = []int{everyoneRole.ID}
 
 	return Database.Save(&newServer).Error == nil
 }

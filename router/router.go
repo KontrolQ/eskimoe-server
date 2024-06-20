@@ -1,7 +1,6 @@
 package router
 
 import (
-	"eskimoe-server/config"
 	"eskimoe-server/controllers"
 	"log"
 
@@ -10,19 +9,15 @@ import (
 )
 
 func Initialize(router *fiber.App) {
-	router.Get("/", func(c *fiber.Ctx) error {
-		return c.Status(fiber.StatusOK).JSON(fiber.Map{
-			"name":    config.Name,
-			"message": config.Message,
-			"version": config.Version,
-		})
-	})
+	// Server Endpoints
+	router.Get("/", controllers.ServerInfo)
 
 	members := router.Group("/members")
 
 	// Members Endpoints
 	members.Post("/join", controllers.JoinServer)
 	members.Delete("/leave", controllers.LeaveServer)
+	members.Get("/me", controllers.Me)
 	members.Post("/me", controllers.Me)
 
 	// Not ready: Just a test

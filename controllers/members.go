@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"eskimoe-server/config"
 	"eskimoe-server/database"
 	"time"
 
@@ -51,6 +52,15 @@ func JoinServer(c *fiber.Ctx) error {
 		})
 	}
 
+	everyoneRole := database.Role{}
+
+	if err := db.Where("name = ?", "everyone").First(&everyoneRole).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"errorCode": fiber.StatusInternalServerError,
+			"error":     "Error Finding System Role",
+		})
+	}
+
 	// Create Member
 	joinedAt := time.Now()
 	newMember := database.Member{
@@ -58,6 +68,7 @@ func JoinServer(c *fiber.Ctx) error {
 		UniqueToken: member.UniqueToken,
 		AuthToken:   string(encryptedToken),
 		DisplayName: member.DisplayName,
+		Roles:       []database.Role{everyoneRole},
 		JoinedAt:    joinedAt,
 	}
 
@@ -113,6 +124,26 @@ func Me(c *fiber.Ctx) error {
 		})
 	}
 
+	if c.Method() == "GET" {
+		member.AuthToken = ""
+
+		member.Roles = []database.Role{}
+
+		if err := database.Database.Model(&member).Association("Roles").Find(&member.Roles); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"errorCode": fiber.StatusInternalServerError,
+				"error":     "Error Finding Roles",
+			})
+		}
+
+		// Add a isOwner field to the member - test: just add it for now to every memb
+
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"member":  member,
+			"isOwner": config.Owner == member.UniqueID,
+		})
+	}
+
 	db := database.Database
 
 	newMember := database.Member{}
@@ -144,9 +175,7 @@ func Me(c *fiber.Ctx) error {
 		})
 	}
 
-	// Remove the auth_token field from the JSON
 	member.AuthToken = ""
-
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Member Updated",
 		"member":  member,
