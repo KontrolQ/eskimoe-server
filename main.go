@@ -7,6 +7,7 @@ import (
 	"eskimoe-server/database"
 	"eskimoe-server/middleware"
 	"eskimoe-server/router"
+	"eskimoe-server/socket"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -29,6 +30,8 @@ func main() {
 	app.Use(middleware.Auth)
 
 	app.Use(helmet.New())
+
+	go socket.WsHub.Run()
 
 	router.Initialize(app)
 

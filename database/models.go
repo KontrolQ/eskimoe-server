@@ -125,7 +125,7 @@ type Room struct {
 }
 
 type Message struct {
-	ID          int                 `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	ID          int                 `gorm:"primaryKey;autoIncrement=true" json:"id"`
 	Content     string              `gorm:"not null" json:"content"`
 	AuthorID    int                 `json:"-"`
 	Author      Member              `json:"author"`
@@ -142,6 +142,7 @@ type MessageReaction struct {
 	ID         int            `gorm:"primaryKey;autoIncrement=true" json:"-"`
 	Reaction   ServerReaction `gorm:"foreignKey:ReactionID" json:"reaction"`
 	Members    []Member       `gorm:"many2many:message_reaction_members" json:"members"`
+	Count      int            `json:"count"`
 	MessageID  int            `json:"-"`
 	Message    Message        `json:"-"`
 	ReactionID int            `json:"-"`
@@ -162,6 +163,7 @@ type MessageAttachment struct {
 type ServerReaction struct {
 	ID        int       `gorm:"primaryKey;autoIncrement=true" json:"-"`
 	Reaction  string    `gorm:"not null" json:"reaction"`
+	Color     string    `gorm:"not null" json:"color"`
 	ServerID  int       `json:"-"`
 	Server    Server    `json:"-"`
 	CreatedAt time.Time `json:"created_at"`
