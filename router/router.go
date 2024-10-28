@@ -2,6 +2,7 @@ package router
 
 import (
 	"eskimoe-server/controllers"
+	"eskimoe-server/database"
 	"eskimoe-server/socket"
 	"log"
 
@@ -36,10 +37,7 @@ func Initialize(router *fiber.App) {
 	messages.Post("/new", controllers.SendMessage)
 	messages.Delete("/:message", controllers.DeleteMessage)
 
-	// Not ready: Just a test
 	router.Use("/ws", func(c *fiber.Ctx) error {
-		// IsWebSocketUpgrade returns true if the client
-		// requested upgrade to the WebSocket protocol.
 		if websocket.IsWebSocketUpgrade(c) {
 			c.Locals("SocketCapable", true)
 			return c.Next()
@@ -50,7 +48,15 @@ func Initialize(router *fiber.App) {
 		})
 	})
 
-	router.Get("/ws/connect", websocket.New(func(c *websocket.Conn) {
+	router.Get("/ws/listen", websocket.New(func(c *websocket.Conn) {
+		if _, ok := c.Locals("Member").(database.Member); !ok {
+			log.Println("Unauthorized Member Disconnected")
+			c.Close()
+			return
+		}
+
+		log.Println("Connected Member", c.Locals("Member").(database.Member).DisplayName)
+
 		socket.WsHub.Register <- c
 		defer func() {
 			socket.WsHub.Unregister <- c
@@ -59,18 +65,16 @@ func Initialize(router *fiber.App) {
 		for {
 			_, msg, err := c.ReadMessage()
 			if err != nil {
-				log.Println("Error Reading Socket Message:", err)
-				break
+				log.Println("Read Error:", err)
+				return
 			}
-			log.Printf("Message Received: %s", msg)
 
-			// Echo the message back
-			response := "Echo: " + string(msg)
-			if err = c.WriteMessage(websocket.TextMessage, []byte(response)); err != nil {
-				log.Println("Error Writing Socket Message:", err)
-				break
+			// Handle Ping messages
+			if string(msg) == string(rune(websocket.PingMessage)) {
+				c.WriteMessage(websocket.PongMessage, []byte(string(rune(websocket.PongMessage))))
 			}
 		}
+
 	}))
 
 	router.Use(func(c *fiber.Ctx) error {

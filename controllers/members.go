@@ -36,10 +36,12 @@ func JoinServer(c *fiber.Ctx) error {
 	// Check if Member Exists
 	var existingMember database.Member
 	if db.Where("unique_id = ?", member.UniqueID).First(&existingMember).Error == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"errorCode": fiber.StatusBadRequest,
-			"error":     "Member already exists",
-		})
+		if existingMember.Status != "left" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"errorCode": fiber.StatusBadRequest,
+				"error":     "Member already exists",
+			})
+		}
 	}
 
 	// encrypt the token
@@ -78,19 +80,32 @@ func JoinServer(c *fiber.Ctx) error {
 		DisplayName: member.DisplayName,
 		Roles:       []database.Role{everyoneRole},
 		ServerID:    server.ID,
+		Status:      database.Online,
 		JoinedAt:    joinedAt,
 	}
 
-	if err := db.Create(&newMember).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"errorCode": fiber.StatusInternalServerError,
-			"error":     "Error Creating Member",
-		})
+	// member can leave and rejoin, so update if exists or create if not
+	if existingMember.ID != 0 {
+		newMember.ID = existingMember.ID
+		if err := db.Save(&newMember).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"errorCode": fiber.StatusInternalServerError,
+				"error":     "Error Updating Member",
+			})
+		}
+	} else {
+		if err := db.Create(&newMember).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"errorCode": fiber.StatusInternalServerError,
+				"error":     "Error Creating Member",
+			})
+		}
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message": "Member Created",
-		"member":  newMember,
+		"message":    "Member Created",
+		"member":     newMember,
+		"auth_token": string(encryptedToken),
 	})
 }
 
@@ -108,8 +123,8 @@ func LeaveServer(c *fiber.Ctx) error {
 
 	db := database.Database
 
-	// Delete the member
-	if err := db.Delete(&member).Error; err != nil {
+	// Set the member status to left
+	if err := db.Model(&member).Update("status", "left").Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"errorCode": fiber.StatusInternalServerError,
 			"error":     "Error Leaving Server",
@@ -134,8 +149,6 @@ func Me(c *fiber.Ctx) error {
 	}
 
 	if c.Method() == "GET" {
-		member.AuthToken = ""
-
 		member.Roles = []database.Role{}
 
 		if err := database.Database.Model(&member).Association("Roles").Find(&member.Roles); err != nil {
@@ -182,7 +195,6 @@ func Me(c *fiber.Ctx) error {
 		})
 	}
 
-	member.AuthToken = ""
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Member Updated",
 		"member":  member,

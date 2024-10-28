@@ -1,6 +1,7 @@
 package socket
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/gofiber/contrib/websocket"
@@ -36,6 +37,7 @@ func (h *Hub) Run() {
 			}
 			h.mu.Unlock()
 		case message := <-h.Broadcast:
+			fmt.Println(h.Clients)
 			h.mu.Lock()
 			for conn := range h.Clients {
 				if err := conn.WriteMessage(websocket.TextMessage, message); err != nil {

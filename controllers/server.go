@@ -36,10 +36,5 @@ func ServerInfo(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(defaultResponse)
 	}
 
-	// Remove the auth token from all members
-	for i := range server.Members {
-		server.Members[i].AuthToken = ""
-	}
-
 	return c.Status(fiber.StatusOK).JSON(server)
 }

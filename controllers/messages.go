@@ -32,11 +32,6 @@ func GetMessages(c *fiber.Ctx) error {
 			"error":     "Room Not Found",
 		})
 	} else {
-		// remove the auth token from all members
-		for i := range room.Messages {
-			room.Messages[i].Author.AuthToken = ""
-		}
-
 		return c.Status(fiber.StatusOK).JSON(room.Messages)
 	}
 }
@@ -81,8 +76,10 @@ func SendMessage(c *fiber.Ctx) error {
 		})
 	}
 
-	// Marshal the message into JSON
-	messageJSON, err := json.Marshal(message)
+	broadcastData, err := json.Marshal(config.SocketBroadcast{
+		BroadcastType: config.MessageCreated,
+		Data:          message,
+	})
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"errorCode": fiber.StatusInternalServerError,
@@ -90,11 +87,7 @@ func SendMessage(c *fiber.Ctx) error {
 		})
 	}
 
-	// Remove the auth token from the author
-	// message.Author.AuthToken = ""
-
-	// Broadcast the JSON message to WebSocket clients
-	socket.WsHub.Broadcast <- messageJSON
+	socket.WsHub.Broadcast <- broadcastData
 
 	return c.Status(fiber.StatusCreated).JSON(message)
 }
@@ -127,11 +120,9 @@ func DeleteMessage(c *fiber.Ctx) error {
 	hasDeletePermission := message.Author.ID == deleter.ID
 
 	if !hasDeletePermission {
-		// Check if owner
 		if config.Owner == deleter.UniqueID {
 			hasDeletePermission = true
 		} else {
-			// Check if admin
 			for _, role := range deleter.Roles {
 				permissions := role.Permissions
 				for _, permission := range permissions {
@@ -158,7 +149,22 @@ func DeleteMessage(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Message Deleted",
+	deletedData := struct {
+		MessageID int  `json:"message_id"`
+		RoomID    int  `json:"room_id"`
+		Deleted   bool `json:"deleted"`
+	}{
+		MessageID: message.ID,
+		RoomID:    message.RoomID,
+		Deleted:   true,
+	}
+
+	broadcastData, _ := json.Marshal(config.SocketBroadcast{
+		BroadcastType: config.MessageDeleted,
+		Data:          deletedData,
 	})
+
+	socket.WsHub.Broadcast <- broadcastData
+
+	return c.Status(fiber.StatusOK).JSON(deletedData)
 }

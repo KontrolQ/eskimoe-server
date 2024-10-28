@@ -34,6 +34,15 @@ const (
 	Administrator      Permission = "administrator"
 )
 
+type MemberStatus string
+
+const (
+	Online  MemberStatus = "online"
+	Idle    MemberStatus = "idle"
+	Offline MemberStatus = "offline"
+	Left    MemberStatus = "left"
+)
+
 // Room Types: Announcement, Text, Commands, Archive
 type RoomType string
 
@@ -132,7 +141,7 @@ type Message struct {
 	Reactions   []MessageReaction   `gorm:"foreignKey:MessageID" json:"reactions"`
 	Attachments []MessageAttachment `gorm:"foreignKey:MessageID" json:"attachments"`
 	Edited      bool                `json:"edited"`
-	RoomID      int                 `json:"-"`
+	RoomID      int                 `json:"room_id"`
 	Room        Room                `json:"-"`
 	CreatedAt   time.Time           `json:"created_at"`
 	UpdatedAt   time.Time           `json:"-"`
@@ -223,18 +232,19 @@ type Log struct {
 }
 
 type Member struct {
-	ID          int       `gorm:"primaryKey;autoIncrement=true" json:"-"`
-	UniqueID    string    `gorm:"not null;unique" json:"-"`
-	AuthToken   string    `gorm:"not null" json:"auth_token,omitempty"`
-	UniqueToken string    `gorm:"not null;unique" json:"-"`
-	DisplayName string    `gorm:"not null" json:"display_name"`
-	About       string    `json:"about"`
-	Pronouns    string    `json:"pronouns"`
-	InviteCode  string    `json:"-"` // This is the code that the member used to join the server.
-	Roles       []Role    `gorm:"many2many:member_roles" json:"roles,omitempty"`
-	ServerID    int       `json:"-"`
-	Server      Server    `json:"-"`
-	JoinedAt    time.Time `json:"joined_at"`
-	CreatedAt   time.Time `json:"-"`
-	UpdatedAt   time.Time `json:"-"`
+	ID          int          `gorm:"primaryKey;autoIncrement=true" json:"-"`
+	UniqueID    string       `gorm:"not null;unique" json:"uid"`
+	AuthToken   string       `gorm:"not null" json:"-"`
+	UniqueToken string       `gorm:"not null;unique" json:"-"`
+	DisplayName string       `gorm:"not null" json:"display_name"`
+	About       string       `json:"about"`
+	Pronouns    string       `json:"pronouns"`
+	InviteCode  string       `json:"-"` // This is the code that the member used to join the server.
+	Roles       []Role       `gorm:"many2many:member_roles" json:"roles,omitempty"`
+	ServerID    int          `json:"-"`
+	Server      Server       `json:"-"`
+	Status      MemberStatus `gorm:"not null;default:'online'" json:"status"`
+	JoinedAt    time.Time    `json:"joined_at"`
+	CreatedAt   time.Time    `json:"-"`
+	UpdatedAt   time.Time    `json:"-"`
 }
